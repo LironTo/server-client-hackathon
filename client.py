@@ -1,25 +1,18 @@
 import socket
 
+client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) # UDP
 
-def client_program():
-    host = socket.gethostname()  # as both code is running on same pc
-    port = 5000  # socket server port number
+# Enable port reusage so we will be able to run multiple clients and servers on single (host, port). 
+# Do not use socket.SO_REUSEADDR except you using linux(kernel<3.9): goto https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ for more information.
+# For linux hosts all sockets that want to share the same address and port combination must belong to processes that share the same effective user ID!
+# So, on linux(kernel>=3.9) you have to run multiple servers and clients under one user to share the same (host, port).
+# Thanks to @stevenreddie
 
-    client_socket = socket.socket()  # instantiate
-    client_socket.connect((host, port))  # connect to the server
+# Enable broadcasting mode
+client.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-    message = input(" -> ")  # take input
-
-    while message.lower().strip() != 'bye':
-        client_socket.send(message.encode())  # send message
-        data = client_socket.recv(1024).decode()  # receive response
-
-        print('Received from server: ' + data)  # show in terminal
-
-        message = input(" -> ")  # again take input
-
-    client_socket.close()  # close the connection
-
-
-if __name__ == '__main__':
-    client_program()
+client.bind(("", 37020))
+while True:
+    # Thanks @seym45 for a fix
+    data, addr = client.recvfrom(1024)
+    print("received message: %s"%data)

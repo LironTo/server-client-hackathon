@@ -1,31 +1,22 @@
 import socket
+import time
 
+server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 
-def server_program():
-    # get the hostname
-    host = socket.gethostname()
-    port = 5000  # initiate port no above 1024
+# Enable port reusage so we will be able to run multiple clients and servers on single (host, port). 
+# Do not use socket.SO_REUSEADDR except you using linux(kernel<3.9): goto https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ for more information.
+# For linux hosts all sockets that want to share the same address and port combination must belong to processes that share the same effective user ID!
+# So, on linux(kernel>=3.9) you have to run multiple servers and clients under one user to share the same (host, port).
+# Thanks to @stevenreddie
 
-    server_socket = socket.socket()  # get instance
-    # look closely. The bind() function takes tuple as argument
-    server_socket.bind((host, port))  # bind host address and port together
+# Enable broadcasting mode
+server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-    # configure how many client the server can listen simultaneously
-    server_socket.listen(2)
-    conn, address = server_socket.accept()  # accept new connection
-    print("Connection from: " + str(address))
-    while True:
-        # receive data stream. it won't accept data packet greater than 1024 bytes
-        data = conn.recv(1024).decode()
-        if not data:
-            # if data is not received break
-            break
-        print("from connected user: " + str(data))
-        data = input(' -> ')
-        conn.send(data.encode())  # send data to the client
-
-    conn.close()  # close the connection
-
-
-if __name__ == '__main__':
-    server_program()
+# Set a timeout so the socket does not block
+# indefinitely when trying to receive data.
+server.settimeout(0.2)
+message = b"your very important message"
+while True:
+    server.sendto(message, ('<broadcast>', 37020))
+    print("message sent!")
+    time.sleep(1)
