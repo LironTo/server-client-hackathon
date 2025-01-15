@@ -15,9 +15,9 @@ def listen_for_offer_udp(byte_size, tcp_connections, udp_connections):
     udp_socket.bind(("", 13117))
     print("Client started, listening for offer requests...")
     data, addr = udp_socket.recvfrom(1024)
+    print("Received offer from: %s" % addr[0])
     data_converted = struct.unpack('IbH', data[:10])
     if(data_converted[0] != MAGIC_COOKIE or data_converted[1] != 0x2):
-        print("Received offer from: %s" % addr[0])
         threads = []
         counter = 1
         for i in range(tcp_connections):
