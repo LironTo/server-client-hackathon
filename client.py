@@ -1,18 +1,85 @@
 import socket
+import struct
+import threading
+import time
 
-client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) # UDP
+TCP_PORT = 12345
+UDP_PORT = 13117
+MAGIC_COOKIE = 0xabcddcba
+MESSAGE_TYPE_REQUEST = 0x3
 
-# Enable port reusage so we will be able to run multiple clients and servers on single (host, port). 
-# Do not use socket.SO_REUSEADDR except you using linux(kernel<3.9): goto https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ for more information.
-# For linux hosts all sockets that want to share the same address and port combination must belong to processes that share the same effective user ID!
-# So, on linux(kernel>=3.9) you have to run multiple servers and clients under one user to share the same (host, port).
-# Thanks to @stevenreddie
 
-# Enable broadcasting mode
-client.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+def listen_for_offer_udp(byte_size, tcp_connections, udp_connections):
+    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    udp_socket.bind(("", 13117))
+    print("Client started, listening for offer requests...")
+    data, addr = udp_socket.recvfrom(1024)
+    data_converted = struct.unpack('IbH', data[:10])
+    if(data_converted[0] != MAGIC_COOKIE or data_converted[1] != 0x2):
+        print("Received offer from: %s" % addr[0])
+        threads = []
+        counter = 1
+        for i in range(tcp_connections):
+            threads.append(threading.Thread(tcp_connection(byte_size, addr[0], data_converted[3],counter)))
+            counter += 1
+        for i in range(udp_connections):
+            threads.append(threading.Thread(udp_connection(byte_size, addr[0], data_converted[2],counter)))
+            counter += 1
 
-client.bind(("", 37020))
-while True:
-    # Thanks @seym45 for a fix
-    data, addr = client.recvfrom(1024)
-    print("received message: %s"%data)
+        for thread in threads:
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+        print("All transfers complete, listening to offer requests")
+
+    else:
+        print("Message is not a valid offer")
+    udp_socket.close()
+
+def tcp_connection(byte_size, address, port, id):
+    tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp_socket.connect((address, int(port, 16)))
+    start_time = time.time()
+    tcp_request_packet = struct.pack('IbH', MAGIC_COOKIE, MESSAGE_TYPE_REQUEST, hex(byte_size))
+    tcp_socket.send(tcp_request_packet)
+    data, addr = tcp_socket.recv(byte_size)
+    end_time = time.time()
+    data_converted = struct.unpack('IbH', data)
+    if(data_converted[0] != MAGIC_COOKIE or data_converted[1] != 0x4):
+        print("Bad payload received in UDP connection " + str(id)+"#")
+        return
+    print("TCP transfer #" + str(id) + " finished, total time: " + str(round(end_time - start_time, 2)) + " seconds, total speed: " + str(round(byte_size*8/(end_time - start_time), 2)) + " bits/second")
+    tcp_socket.close()
+
+def udp_connection(byte_size, address, port, id):
+    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    udp_socket.connect((address, int(port, 16)))
+    start_time = time.time()
+    udp_request_packet = struct.pack('IbH', MAGIC_COOKIE, MESSAGE_TYPE_REQUEST, hex(byte_size))
+    udp_socket.send(udp_request_packet)
+    data, addr = udp_socket.recv(byte_size)
+    end_time = time.time()
+    data_converted = struct.unpack('IbH', data)
+    if(data_converted[0] != MAGIC_COOKIE or data_converted[1] != 0x4):
+        print("Bad payload received in UDP connection " + str(id)+"#")
+        return
+    print("UDP transfer #" + str(id) + " finished, total time: " + str(round(end_time - start_time, 2)) + " seconds, total speed: " + str(round(byte_size*8/(end_time - start_time), 2)) + " bits/second")
+    udp_socket.close()
+
+
+
+
+
+
+def main():
+    byte_size = 1073741824#input("Enter file size (in Bytes):")
+    tcp_connections = 1#input("Enter number of TCP connections:")
+    udp_connections = 0#input("Enter number of UDP connections:")
+    while True:
+        listen_for_offer_udp(byte_size, tcp_connections, udp_connections)
+
+
+main()
