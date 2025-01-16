@@ -16,15 +16,16 @@ def listen_for_offer_udp(byte_size, tcp_connections, udp_connections):
     print("Client started, listening for offer requests...")
     data, addr = udp_socket.recvfrom(1024)
     print("Received offer from: %s" % addr[0])
-    data_converted = struct.unpack('IbH', data[:10])
-    if(data_converted[0] != MAGIC_COOKIE or data_converted[1] != 0x2):
+    data_converted = data
+    if(data_converted[0:4] == MAGIC_COOKIE.to_bytes(4, byteorder="big") and data_converted[4:5] == (0x2).to_bytes(1, byteorder="big")):
+        print("Bad payload received")
         threads = []
         counter = 1
         for i in range(tcp_connections):
-            threads.append(threading.Thread(tcp_connection(byte_size, addr[0], data_converted[3],counter)))
+            threads.append(threading.Thread(tcp_connection(byte_size, addr[0], data[7:9].decode('ascii'),counter)))
             counter += 1
         for i in range(udp_connections):
-            threads.append(threading.Thread(udp_connection(byte_size, addr[0], data_converted[2],counter)))
+            threads.append(threading.Thread(udp_connection(byte_size, addr[0], data[5:7].decode('ascii'),counter)))
             counter += 1
 
         for thread in threads:

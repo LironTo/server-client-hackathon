@@ -32,12 +32,12 @@ def tcp_payload(size, conn):
             
     
 def start_server_udp(address):
-    ipv4 = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1]
+    my_ip = socket.gethostbyname(socket.gethostname())
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     server.bind(address)
     data, addr = server.recvfrom(1024)
-    if(addr[0] != ipv4[0]):
+    if(addr[0] != my_ip):
         print("Connection from", addr)
     server.close()
 
@@ -88,15 +88,15 @@ def broadcast():
         time.sleep(1)
 
 def start_server():
-    ipv4 = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1]
-    print("Server started, listening on IP address", ipv4[0])
+    my_ip = socket.gethostbyname(socket.gethostname())
+    print("Server started, listening on IP address", my_ip)
     try:
         thread = threading.Thread(target=broadcast)
         thread.start()
         thread2 = threading.Thread(target=wait_for_clients_tcp)
-        #thread2.start()
+        thread2.start()
         thread3 = threading.Thread(target=wait_for_clients_udp)
-        #thread3.start()
+        thread3.start()
 
     except Exception as e:
         print(e)
