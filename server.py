@@ -1,4 +1,5 @@
 import socket
+import struct
 import time
 import threading
 import random
@@ -8,26 +9,31 @@ UDP_PORT = 13117
 magic_cookie = 0xabcddcba
 message_type = 0x2
 request_type = 0x3
+payload_type = 0x4
 packet_size = 1024
 
 
 
 def tcp_payload(size, conn):
     count = 0
+    print(f"Size: {size}, conn: {conn}")
     while size:
         data = magic_cookie.to_bytes(4, byteorder='big') + message_type.to_bytes(1, byteorder='big') + size.to_bytes(8, byteorder='big') + count.to_bytes(8, byteorder='big')
-        if size > packet_size:
-            data += b'a' * packet_size  # Generate mock data
-            data += b'\n'  # Add a newline character
-            conn.send(data.encode())
-            size -= packet_size
-        else:
-            data += b'a' * size
-            data += b'\n'
-            conn.send(data.encode())
-            size = 0
-        count += 1
-        
+        data = struct.pack("QQIB", size, count, magic_cookie, payload_type)
+        try:
+            if size > packet_size:
+                data += b'a' * packet_size  # Generate mock data
+                data += b'\n'  # Add a newline character
+                conn.send(data)
+                size -= packet_size
+            else:
+                data += b'a' * size
+                data += b'\n'
+                conn.send(data)
+                size = 0
+            count += 1
+        except Exception as e:
+            pass
             
             
     
@@ -47,15 +53,20 @@ def start_server_tcp(address):
     server.listen()
     conn, addr = server.accept()
     print("Connection from", addr)
-    data = conn.recv(1024)
-    print("received message: %s" % data.decode())
-    if data.decode()[0:4] != str(magic_cookie) or data.decode()[4] != str(request_type):
+    data = conn.recv(13)
+    print(f"Data length: {len(data)}")
+    print(f"Data received: {data}")
+    print(f"Data type: {type(data)}")
+
+    data_converted = struct.unpack("QIB", data)
+    print(f"Data received: {data_converted}")
+    if data_converted[1] != magic_cookie or data_converted[2] != request_type:
         print("Wrong magic cookie or message type")
         conn.close()
         server.close()
         return
     else:
-        size = data.decode()[5:]
+        size = data_converted[0]
         tcp_payload(size, conn)
     conn.close()
     server.close()
@@ -81,7 +92,8 @@ def broadcast():
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     server.settimeout(0.2)
-    message = magic_cookie.to_bytes(4, byteorder='big') + message_type.to_bytes(1, byteorder='big') + UDP_PORT.to_bytes(2, byteorder='big') + TCP_PORT.to_bytes(2, byteorder='big')
+    message = struct.pack("IbHH", magic_cookie, message_type, UDP_PORT, TCP_PORT)
+    #message = magic_cookie.to_bytes(4, byteorder='big') + message_type.to_bytes(1, byteorder='big') + UDP_PORT.to_bytes(2, byteorder='big') + TCP_PORT.to_bytes(2, byteorder='big')
     #message = b"Hello, new game starting soon!"
     while True:
         server.sendto(message, ('<broadcast>', UDP_PORT))
