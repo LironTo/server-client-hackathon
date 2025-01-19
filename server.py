@@ -3,6 +3,7 @@ import struct
 import time
 import threading
 import random
+import math
 
 TCP_PORT = 12345
 UDP_PORT = 13117
@@ -14,28 +15,12 @@ packet_size = 1024
 
 
 
-def tcp_payload(size, conn):
-    count = 0
-    print(f"Size: {size}, conn: {conn}")
-    while size:
-        data = magic_cookie.to_bytes(4, byteorder='big') + message_type.to_bytes(1, byteorder='big') + size.to_bytes(8, byteorder='big') + count.to_bytes(8, byteorder='big')
-        data = struct.pack("QQIB", size, count, magic_cookie, payload_type)
-        try:
-            if size > packet_size:
-                data += b'a' * packet_size  # Generate mock data
-                data += b'\n'  # Add a newline character
-                conn.send(data)
-                size -= packet_size
-            else:
-                data += b'a' * size
-                data += b'\n'
-                conn.send(data)
-                size = 0
-            count += 1
-        except Exception as e:
-            pass
-            
-            
+def tcp_payload(conn, addr):
+    request = conn.recv(1024)
+    size = int(request.decode().split('\n')[0])
+    file = b'a' * size
+    conn.sendall(file)
+    conn.close()
     
 def start_server_udp(address):
     my_ip = socket.gethostbyname(socket.gethostname())
@@ -45,39 +30,24 @@ def start_server_udp(address):
     data, addr = server.recvfrom(1024)
     if(addr[0] != my_ip):
         print("Connection from", addr)
-    server.close()
 
-def start_server_tcp(address):
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind(address)
-    server.listen()
-    conn, addr = server.accept()
-    print("Connection from", addr)
-    data = conn.recv(13)
-    print(f"Data length: {len(data)}")
-    print(f"Data received: {data}")
-    print(f"Data type: {type(data)}")
-
-    data_converted = struct.unpack("QIB", data)
-    print(f"Data received: {data_converted}")
-    if data_converted[1] != magic_cookie or data_converted[2] != request_type:
-        print("Wrong magic cookie or message type")
-        conn.close()
-        server.close()
-        return
-    else:
-        size = data_converted[0]
-        tcp_payload(size, conn)
-    conn.close()
-    server.close()
     
 def wait_for_clients_tcp():
     address = ('', TCP_PORT)
-    try:
-        thread = threading.Thread(target=start_server_tcp, args=(address,))
-        thread.start()
-    except Exception as e:
-        print(e)
+    tcp_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp_server.bind(address)
+    tcp_server.listen()
+
+    while True:
+        conn, addr = tcp_server.accept()
+        if conn is None:
+            continue
+        print("TCP connection from", addr)
+        tcp_thread = threading.Thread(tcp_payload(conn, addr))
+        tcp_thread.start()
+
+    tcp_server.close()
+
 
 def wait_for_clients_udp():
     address = ('', UDP_PORT)
@@ -92,9 +62,7 @@ def broadcast():
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     server.settimeout(0.2)
-    message = struct.pack("IbHH", magic_cookie, message_type, UDP_PORT, TCP_PORT)
-    #message = magic_cookie.to_bytes(4, byteorder='big') + message_type.to_bytes(1, byteorder='big') + UDP_PORT.to_bytes(2, byteorder='big') + TCP_PORT.to_bytes(2, byteorder='big')
-    #message = b"Hello, new game starting soon!"
+    message = struct.pack("IHHB", magic_cookie, UDP_PORT, TCP_PORT, message_type)
     while True:
         server.sendto(message, ('<broadcast>', UDP_PORT))
         time.sleep(1)
@@ -103,15 +71,17 @@ def start_server():
     my_ip = socket.gethostbyname(socket.gethostname())
     print("Server started, listening on IP address", my_ip)
     try:
-        thread = threading.Thread(target=broadcast)
-        thread.start()
-        thread2 = threading.Thread(target=wait_for_clients_tcp)
-        thread2.start()
-        thread3 = threading.Thread(target=wait_for_clients_udp)
-        thread3.start()
+        broadcast_thread = threading.Thread(target=broadcast)
+        broadcast_thread.start()
+        tcp_thread = threading.Thread(target=wait_for_clients_tcp)
+        tcp_thread.start()
+        udp_thread = threading.Thread(target=wait_for_clients_udp)
+        udp_thread.start()
 
     except Exception as e:
         print(e)
 
-if __name__ == '__main__':
+def main():
     start_server()
+
+main()
