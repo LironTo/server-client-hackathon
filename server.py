@@ -43,7 +43,7 @@ def wait_for_clients_tcp():
         if conn is None:
             continue
         print("TCP connection from", addr)
-        tcp_thread = threading.Thread(tcp_payload(conn, addr))
+        tcp_thread = threading.Thread(target=tcp_payload, args=(conn, addr))
         tcp_thread.start()
 
     tcp_server.close()
