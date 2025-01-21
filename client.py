@@ -20,19 +20,20 @@ def listen_for_offer_udp(byte_size, tcp_connections, udp_connections):
     print("Received offer from: %s" % addr[0])
     data_converted = struct.unpack('IHHB', data)
     if(data_converted[0] == MAGIC_COOKIE and data_converted[3] == MESSAGE_TYPE_OFFER):
-        threads = []
-        counter = 1
+        print("Offer received, connecting to server")
+        tcp_threads = []
+        udp_threads = []
         for i in range(tcp_connections):
-            threads.append(threading.Thread(target=tcp_connection, args=(byte_size, addr[0], data_converted[2], counter)))
-            counter += 1
+            tcp_thread = threading.Thread(target=tcp_connection, args=(byte_size//tcp_connections, addr[0], TCP_PORT, i))
+            tcp_threads.append(tcp_thread)
+            tcp_thread.start()
         for i in range(udp_connections):
-            threads.append(threading.Thread(target=udp_connection, args=(byte_size, addr[0], data_converted[1], counter)))
-            counter += 1
-
-        for thread in threads:
-            thread.start()
-
-        for thread in threads:
+            udp_thread = threading.Thread(target=udp_connection, args=(byte_size//udp_connections, addr[0], 13355, i))
+            udp_threads.append(udp_thread)
+            udp_thread.start()
+        for thread in tcp_threads:
+            thread.join()
+        for thread in udp_threads:
             thread.join()
 
         print("All transfers complete, listening to offer requests")
@@ -53,20 +54,20 @@ def tcp_connection(byte_size, address, port, id):
         tcp_socket.send(tcp_request_packet.encode())
 
         data_count = 0
-        while True:
+        
+        while data_count < byte_size:
             data = tcp_socket.recv(1024)
             data_count += len(data)
-            if data_count == byte_size:
-                break
-            elif not data:
+            if not data:
                 raise Exception("Connection closed by server")
-        end_time = time.time()
-
+        end_time = time.time() 
+        print("Data count: " + str(data_count))
+        print("Byte size: " + str(byte_size))
         if data_count != byte_size:
             print("Data count is less than byte size")
             return
-
         print("TCP transfer #" + str(id) + " finished, total time: " + str(round(end_time - start_time, 2)) + " seconds, total speed: " + str(round(byte_size*8/(end_time - start_time), 2)) + " bits/second")
+        tcp_socket.close()
     except Exception as e:
         print("An error occurred in TCP connection " + str(id) + "#, error: " + str(e))
 
@@ -74,17 +75,35 @@ def tcp_connection(byte_size, address, port, id):
 
 def udp_connection(byte_size, address, port, id):
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-    udp_socket.connect((address, int(port, 16)))
+    packet = str(byte_size)
+    udp_socket.sendto(packet.encode(), (address, port))
     start_time = time.time()
-    udp_request_packet = struct.pack('IbH', MAGIC_COOKIE, MESSAGE_TYPE_REQUEST, hex(byte_size))
-    udp_socket.send(udp_request_packet)
-    data, addr = udp_socket.recv(byte_size)
+    udp_socket.settimeout(10)
+    #udp_request_packet = struct.pack('IbH', MAGIC_COOKIE, MESSAGE_TYPE_REQUEST, hex(byte_size))
+    #udp_socket.send(udp_request_packet)
+    data_count = 0
+    while data_count < byte_size:
+        try:
+            data = udp_socket.recv(1024)
+            if not data:
+                break
+            data_count += len(data)
+            if not data:
+                raise Exception("Connection closed by server")
+        except Exception as e:
+            print("An error occurred in UDP connection " + str(id) + "#, error: " + str(e))
+            break
     end_time = time.time()
-    data_converted = struct.unpack('IbH', data)
-    if(data_converted[0] != MAGIC_COOKIE or data_converted[1] != 0x4):
-        print("Bad payload received in UDP connection " + str(id)+"#")
-        return
-    print("UDP transfer #" + str(id) + " finished, total time: " + str(round(end_time - start_time, 2)) + " seconds, total speed: " + str(round(byte_size*8/(end_time - start_time), 2)) + " bits/second")
+    print("Data count: " + str(data_count))
+    print("Byte size: " + str(byte_size))
+    # if data_count == byte_size:
+    #     data_conversion = struct.unpack('IHHB', data)
+    #     if(data_conversion[0] == MAGIC_COOKIE and data_conversion[3] == MESSAGE_TYPE_PAYLOAD):
+    #         print("Data received")
+    #     else:
+    #         print("Data not received")
+    print("UDP transfer #" + str(id) + " finished, total time: " + str(round(end_time - start_time, 2)) + " seconds, total speed: " + str(round(byte_size*8/(end_time - start_time), 2)) + " bits/second" \
+        + "total percentage of data recevied: " + str(round(data_count/byte_size*100, 2)) + "%")
     udp_socket.close()
 
 
@@ -93,14 +112,14 @@ def udp_connection(byte_size, address, port, id):
 
 
 def main():
-    byte_size = 1073741824#input("Enter file size (in Bytes):")
-    tcp_connections = 2#input("Enter number of TCP connections:")
-    udp_connections = 0#input("Enter number of UDP connections:")
-    while True:
-        try:
-            listen_for_offer_udp(byte_size, tcp_connections, udp_connections)
-        except TimeoutError as e:
-            print("Connection with the server has timed out.")
+    byte_size = 16#input("Enter file size (in Bytes):")
+    tcp_connections = 6#input("Enter number of TCP connections:")
+    udp_connections = 6#input("Enter number of UDP connections:")
+
+    try: 
+        listen_for_offer_udp(byte_size, tcp_connections, udp_connections)
+    except Exception as e:
+        print("An error occurred: " + str(e))
 
 
 main()
