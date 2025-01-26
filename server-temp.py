@@ -1,23 +1,23 @@
 import socket
 import time
 
-server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+# Broadcast server settings
+BROADCAST_IP = "<broadcast>"  # Broadcast address
+BROADCAST_PORT = 13117        # Port to broadcast on
+MESSAGE = "Hello, clients!".encode()  # Message to broadcast
 
-# Enable port reusage so we will be able to run multiple clients and servers on single (host, port). 
-# Do not use socket.SO_REUSEADDR except you using linux(kernel<3.9): goto https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ for more information.
-# For linux hosts all sockets that want to share the same address and port combination must belong to processes that share the same effective user ID!
-# So, on linux(kernel>=3.9) you have to run multiple servers and clients under one user to share the same (host, port).
-# Thanks to @stevenreddie
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+# Create a UDP socket
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # Enable broadcast
 
-# Enable broadcasting mode
-server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+print(f"Broadcasting on {BROADCAST_IP}:{BROADCAST_PORT}...")
 
-# Set a timeout so the socket does not block
-# indefinitely when trying to receive data.
-server.settimeout(0.2)
-message = b"your very important message"
-while True:
-    server.sendto(message, ('<broadcast>', 13117))
-    print("message sent!")
-    time.sleep(1)
+try:
+    while True:
+        server_socket.sendto(MESSAGE, (BROADCAST_IP, BROADCAST_PORT))
+        print(f"Broadcasted: {MESSAGE.decode()}")
+        time.sleep(2)  # Broadcast every 2 seconds
+except KeyboardInterrupt:
+    print("Broadcast server stopped.")
+finally:
+    server_socket.close()
