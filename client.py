@@ -3,6 +3,8 @@ import struct
 import threading
 import time
 
+from bcolors import bcolors
+
 BROADCAST_PORT = 13117
 MAGIC_COOKIE = 0xabcddcba
 MESSAGE_TYPE_PAYLOAD = 0x4
@@ -14,15 +16,14 @@ def listen_for_offer_udp(byte_size, tcp_connections, udp_connections):
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     udp_socket.bind(("", BROADCAST_PORT))
-    print("Client started, listening for offer requests...")
+    print(f"{bcolors.BOLD}Client started, listening for offer requests...{bcolors.ENDC}")
     data, addr = udp_socket.recvfrom(9)
-    print("Received offer from: %s" % addr[0])
+    print(f"{bcolors.OKCYAN}Received offer from: {addr[0]}{bcolors.ENDC}")
     data_converted = struct.unpack('!IBHH', data)
     data_converted = list(data_converted)
     if(data_converted[0] == MAGIC_COOKIE and data_converted[1] == MESSAGE_TYPE_OFFER):
         udp = data_converted[2]
         tcp = data_converted[3]
-        print("Offer received, connecting to server")
         tcp_threads = []
         udp_threads = []
         for i in range(tcp_connections):
@@ -37,11 +38,8 @@ def listen_for_offer_udp(byte_size, tcp_connections, udp_connections):
             thread.join()
         for thread in udp_threads:
             thread.join()
-
-        print("All transfers complete, listening to offer requests")
-
     else:
-        print("Message is not a valid offer")
+        print(f"{bcolors.WARNING}Message is not a valid offer{bcolors.ENDC}")
     udp_socket.close()
 
 def tcp_connection(byte_size, address, port, id):
@@ -61,17 +59,15 @@ def tcp_connection(byte_size, address, port, id):
             data = tcp_socket.recv(1024)
             data_count += len(data)
             if not data:
-                raise Exception("Connection closed by server")
-        end_time = time.time() 
-        print("Data count: " + str(data_count))
-        print("Byte size: " + str(byte_size))
+                raise Exception(f"{bcolors.FAIL}Connection closed by server{bcolors.ENDC}")
+        end_time = time.time()
         if data_count != byte_size:
-            print("Data count is less than byte size")
+            print(f"{bcolors.WARNING}Data count is less than byte size{bcolors.ENDC}")
             return
-        print("TCP transfer #" + str(id) + " finished, total time: " + str(round(end_time - start_time, 2)) + " seconds, total speed: " + str(round(byte_size*8/(end_time - start_time), 2)) + " bits/second")
+        print(f"{bcolors.OKBLUE}TCP transfer #" + str(id) + " finished, total time: " + str(round(end_time - start_time, 2)) + " seconds, total speed: " + str(round(byte_size*8/(end_time - start_time), 2)) + f" bits/second{bcolors.ENDC}")
         tcp_socket.close()
     except Exception as e:
-        print("An error occurred in TCP connection " + str(id) + "#, error: " + str(e))
+        print(f"{bcolors.FAIL}An error occurred in TCP connection " + str(id) + "#, error: " + str(e) + f"{bcolors.ENDC}")
 
 
 
@@ -97,29 +93,26 @@ def udp_connection(byte_size, address, port, id):
                 break
             
             if len(data) < HEADER_SIZE:
-                print(f"Received incomplete packet: {len(data)} bytes")
+                print(f"{bcolors.WARNING}Received incomplete packet: {len(data)} bytes{bcolors.ENDC}")
                 continue  # Skip processing if data is too small
 
             payload_data = data[HEADER_SIZE:]  # Exclude header
             data_count += len(payload_data)  # Count only payload bytes
 
         except Exception as e:
-            print(f"An error occurred in UDP connection {id}#, error: {e}")
+            print(f"{bcolors.FAIL}An error occurred in UDP connection {id}#, error: {e}{bcolors.ENDC}")
             break
 
     end_time = time.time()
     
-    print(f"Data count (payload only): {data_count}")
-    print(f"Expected payload size: {payload_size}")
-    
     if data_count == payload_size:
-        print("Data received successfully")
+        pass
     else:
-        print("Data not fully received")
+        print(f"{bcolors.FAIL}Data not fully received{bcolors.ENDC}")
     
-    print(f"UDP transfer #{id} finished, total time: {round(end_time - start_time, 2)} seconds, "
+    print(f"{bcolors.OKGREEN}UDP transfer #{id} finished, total time: {round(end_time - start_time, 2)} seconds, "
           f"total speed: {round(payload_size * 8 / (end_time - start_time), 2)} bits/second, "
-          f"total percentage of data received: {round(data_count / payload_size * 100, 2)}%")
+          f"total percentage of data received: {round(data_count / payload_size * 100, 2)}%{bcolors.ENDC}")
     
     udp_socket.close()
 
@@ -130,14 +123,15 @@ def udp_connection(byte_size, address, port, id):
 
 
 def main():
-    byte_size = 999999#input("Enter file size (in Bytes):")
-    tcp_connections = 6#input("Enter number of TCP connections:")
-    udp_connections = 6#input("Enter number of UDP connections:")
+    byte_size = input(f"{bcolors.OKBLUE}Enter file size (in Bytes):{bcolors.ENDC}")
+    tcp_connections = input(f"{bcolors.OKCYAN}Enter number of TCP connections:{bcolors.ENDC}")
+    udp_connections = input(f"{bcolors.OKGREEN}Enter number of UDP connections:{bcolors.ENDC}")
 
-    try: 
-        listen_for_offer_udp(byte_size, tcp_connections, udp_connections)
+    try:
+        while True:
+            listen_for_offer_udp(byte_size, tcp_connections, udp_connections)
     except Exception as e:
-        print("An error occurred: " + str(e))
+        print(f"{bcolors.WARNING}An error occurred: " + str(e) + f"{bcolors.ENDC}")
 
 
 main()
