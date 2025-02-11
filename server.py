@@ -98,7 +98,10 @@ def wait_for_clients_udp():
         #    print("Invalid request")
 
 def broadcast():
-    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    host = socket.gethostbyname(socket.gethostname())
+    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    
+    server.bind((host, 0))  # Use the correct IP of the laptop
     server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     server.settimeout(0.2)
     message = struct.pack("!IBHH", magic_cookie, message_type, UDP_PORT, TCP_PORT)
@@ -125,6 +128,8 @@ def start_server():
         print(e)
 
 def main():
+    print(socket.gethostbyname(socket.gethostname()))
+
     start_server()
 
 main()
