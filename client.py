@@ -26,11 +26,11 @@ def listen_for_offer_udp(byte_size, tcp_connections, udp_connections):
         tcp = data_converted[3]
         tcp_threads = []
         udp_threads = []
-        for i in range(tcp_connections):
+        for i in range(1,tcp_connections+1):
             tcp_thread = threading.Thread(target=tcp_connection, args=(byte_size//tcp_connections, addr[0], tcp, i))
             tcp_threads.append(tcp_thread)
             tcp_thread.start()
-        for i in range(udp_connections):
+        for i in range(1,udp_connections+1):
             udp_thread = threading.Thread(target=udp_connection, args=(byte_size//udp_connections, addr[0], udp, i))
             udp_threads.append(udp_thread)
             udp_thread.start()
@@ -123,9 +123,9 @@ def udp_connection(byte_size, address, port, id):
 
 
 def main():
-    byte_size = input(f"{bcolors.OKBLUE}Enter file size (in Bytes):{bcolors.ENDC}")
-    tcp_connections = input(f"{bcolors.OKCYAN}Enter number of TCP connections:{bcolors.ENDC}")
-    udp_connections = input(f"{bcolors.OKGREEN}Enter number of UDP connections:{bcolors.ENDC}")
+    byte_size = int(input(f"{bcolors.OKBLUE}Enter file size (in Bytes):{bcolors.ENDC}"))
+    tcp_connections = int(input(f"{bcolors.OKCYAN}Enter number of TCP connections:{bcolors.ENDC}"))
+    udp_connections = int(input(f"{bcolors.OKGREEN}Enter number of UDP connections:{bcolors.ENDC}"))
 
     try:
         while True:
